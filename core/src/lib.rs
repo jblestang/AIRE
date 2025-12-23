@@ -16,7 +16,7 @@ mod tests;
 pub use corpus::{Corpus, Flow, PduRef, UdpDatagram};
 pub use error::{Error, Result};
 pub use hypothesis::Hypothesis;
-pub use inference::{InferenceEngine, InferenceResult, Layer};
+pub use inference::{HypothesisResult, InferenceEngine, InferenceResult, Layer};
 pub use measures::{entropy, entropy_by_offset, AlignmentGain};
 pub use parser::{ParsedCorpus, ParsedPdu, Parser, SegmentKind};
 pub use plugin::{HypothesisGenerator, PluginRegistry, Scorer};

@@ -161,8 +161,11 @@ mod tests {
         let registry = create_default_registry();
 
         let hypothesis = Hypothesis::Tlv {
+            tag_offset: 0,
             tag_bytes: 1,
+            len_offset: 1,
             len_rule: TlvLenRule::DefiniteShort,
+            length_includes_header: false,
         };
 
         let parser = registry

@@ -27,8 +27,11 @@ pub enum Hypothesis {
     },
     /// TLV (BER-like)
     Tlv {
+        tag_offset: usize,
         tag_bytes: usize,
+        len_offset: usize,  // Offset relatif au début du tag
         len_rule: TlvLenRule,
+        length_includes_header: bool, // Si true, le length inclut tag+length
     },
     /// Varint fields (protobuf-like)
     VarintKeyWireType {
@@ -52,8 +55,9 @@ pub enum Endianness {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum TlvLenRule {
-    DefiniteShort,
-    DefiniteLong,
+    DefiniteShort,    // 1 byte
+    DefiniteMedium,   // 2 bytes
+    DefiniteLong,     // 4 bytes
     IndefiniteWithEoc,
 }
 

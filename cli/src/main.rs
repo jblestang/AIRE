@@ -20,9 +20,6 @@ struct Args {
     #[arg(short, long)]
     out: String,
 
-    /// Index du flow à analyser (optionnel, analyse tous les flows par défaut)
-    #[arg(short, long)]
-    flow: Option<usize>,
 
     /// Profondeur maximale de récursion
     #[arg(long, default_value = "6")]
@@ -42,47 +39,33 @@ fn main() -> Result<()> {
     let args = Args::parse();
 
     info!("Chargement du fichier PCAP: {}", args.pcap);
-    let flows = pcap::parse_pcap(&args.pcap)
+    let flow = pcap::parse_pcap(&args.pcap)
         .with_context(|| format!("Échec du parsing PCAP: {}", args.pcap))?;
 
-    info!("{} flows UDP trouvés", flows.len());
+    info!("{} paquets UDP trouvés", flow.datagrams.len());
 
-    let flows_to_process = if let Some(flow_idx) = args.flow {
-        if flow_idx >= flows.len() {
-            anyhow::bail!("Index de flow invalide: {} (max: {})", flow_idx, flows.len() - 1);
-        }
-        vec![flows[flow_idx].clone()]
-    } else {
-        flows
-    };
+    if flow.datagrams.is_empty() {
+        anyhow::bail!("Aucun paquet UDP trouvé dans le fichier PCAP");
+    }
 
     let registry = plugins::create_default_registry();
     let engine = InferenceEngine::new()
         .with_max_depth(args.max_depth)
         .with_top_k(args.top_k);
 
-    let mut results = Vec::new();
+    info!("Traitement de {} datagrammes", flow.datagrams.len());
 
-    for (idx, flow) in flows_to_process.iter().enumerate() {
-        info!("Traitement du flow {} ({} datagrammes)", idx, flow.datagrams.len());
+    let corpus = Corpus::from_datagrams(&flow.datagrams, Some(0));
+    info!("Corpus créé: {} PDUs, {} octets", corpus.len(), corpus.total_bytes());
 
-        let corpus = Corpus::from_datagrams(&flow.datagrams, Some(idx));
-        info!("Corpus créé: {} PDUs, {} octets", corpus.len(), corpus.total_bytes());
-
-        let result = engine.infer(corpus, &registry);
-        info!("Inférence terminée: {} couches trouvées", result.layers.len());
-
-        results.push(serde_json::json!({
-            "flow_index": idx,
-            "flow": flow,
-            "result": result,
-        }));
-    }
+    let result = engine.infer(corpus, &registry);
+    info!("Inférence terminée: {} couches trouvées", result.layers.len());
 
     let output = serde_json::json!({
-        "flows": results,
+        "flow": flow,
+        "result": result,
         "summary": {
-            "total_flows": results.len(),
+            "total_packets": flow.datagrams.len(),
         }
     });
 

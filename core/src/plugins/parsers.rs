@@ -307,7 +307,7 @@ impl Parser for TlvParser {
     }
 
     fn parse_corpus(&self, corpus: &Corpus, h: &Hypothesis) -> ParsedCorpus {
-        let Hypothesis::Tlv { tag_bytes, len_rule } = h else {
+        let Hypothesis::Tlv { tag_offset, tag_bytes, len_offset, len_rule, length_includes_header } = h else {
             return ParsedCorpus::new(vec![]);
         };
 
@@ -320,7 +320,9 @@ impl Parser for TlvParser {
             let mut pos = 0;
 
             while pos < data.len() {
-                if pos + *tag_bytes > data.len() {
+                // Vérifier qu'on a assez de place pour le tag à l'offset spécifié
+                let tag_start = pos + *tag_offset;
+                if tag_start + *tag_bytes > data.len() {
                     exceptions.push("Incomplete tag".to_string());
                     segments.push(Segment::new(
                         SegmentKind::Error("Incomplete tag".to_string()),
@@ -329,40 +331,60 @@ impl Parser for TlvParser {
                     break;
                 }
 
+                // Ajouter un préfixe PCI si tag_offset > 0
+                if *tag_offset > 0 && pos < tag_start {
+                    segments.push(Segment::new(
+                        SegmentKind::Pci,
+                        pos..tag_start,
+                    ));
+                }
+
+                // Tag
                 segments.push(Segment::new(
                     SegmentKind::Field("tag".to_string()),
-                    pos..pos + *tag_bytes,
+                    tag_start..tag_start + *tag_bytes,
                 ));
-                pos += *tag_bytes;
+                
+                // Calculer où commence le length
+                let length_start = pos + *len_offset;
 
+                // Lire le length à l'offset spécifié
                 let len = match len_rule {
                     TlvLenRule::DefiniteShort => {
-                        if pos >= data.len() {
+                        if length_start >= data.len() {
                             exceptions.push("Incomplete length".to_string());
                             break;
                         }
-                        let l = data[pos] as usize;
-                        pos += 1;
+                        let l = data[length_start] as usize;
+                        l
+                    }
+                    TlvLenRule::DefiniteMedium => {
+                        if length_start + 2 > data.len() {
+                            exceptions.push("Incomplete length".to_string());
+                            break;
+                        }
+                        // Support both little and big endian for 2-byte length
+                        // Try big endian first (more common in TLV)
+                        let l = u16::from_be_bytes([data[length_start], data[length_start + 1]]) as usize;
                         l
                     }
                     TlvLenRule::DefiniteLong => {
-                        if pos + 4 > data.len() {
+                        if length_start + 4 > data.len() {
                             exceptions.push("Incomplete length".to_string());
                             break;
                         }
                         let l = u32::from_be_bytes([
-                            data[pos],
-                            data[pos + 1],
-                            data[pos + 2],
-                            data[pos + 3],
+                            data[length_start],
+                            data[length_start + 1],
+                            data[length_start + 2],
+                            data[length_start + 3],
                         ]) as usize;
-                        pos += 4;
                         l
                     }
                     TlvLenRule::IndefiniteWithEoc => {
-                        // Chercher 0x00 0x00
+                        // Chercher 0x00 0x00 à partir de length_start
                         let mut found = false;
-                        let mut search_pos = pos;
+                        let mut search_pos = length_start;
                         while search_pos + 1 < data.len() {
                             if data[search_pos] == 0x00 && data[search_pos + 1] == 0x00 {
                                 found = true;
@@ -374,30 +396,100 @@ impl Parser for TlvParser {
                             exceptions.push("EOC not found".to_string());
                             break;
                         }
-                        let l = search_pos - pos;
-                        pos = search_pos + 2;
-                        l
+                        search_pos - length_start // Longueur jusqu'à EOC
                     }
                 };
-
-                segments.push(Segment::new(
-                    SegmentKind::Field("length".to_string()),
-                    pos - if matches!(len_rule, TlvLenRule::DefiniteShort) {
-                        1
-                    } else if matches!(len_rule, TlvLenRule::DefiniteLong) {
-                        4
+                
+                let length_field_size = match len_rule {
+                    TlvLenRule::DefiniteShort => 1,
+                    TlvLenRule::DefiniteMedium => 2,
+                    TlvLenRule::DefiniteLong => 4,
+                    TlvLenRule::IndefiniteWithEoc => 0,
+                };
+                
+                // Calculer où se termine le length field
+                let length_end = length_start + length_field_size;
+                
+                // Ajouter un segment pour l'espace entre tag et length si nécessaire
+                if tag_start + *tag_bytes < length_start {
+                    segments.push(Segment::new(
+                        SegmentKind::Pci,
+                        tag_start + *tag_bytes..length_start,
+                    ));
+                }
+                
+                // Length field
+                if length_field_size > 0 {
+                    segments.push(Segment::new(
+                        SegmentKind::Field("length".to_string()),
+                        length_start..length_end,
+                    ));
+                }
+                
+                // Calculer où commence la valeur
+                let value_start = length_end;
+                
+                // Ajuster le length si il inclut le header
+                let actual_len = if *length_includes_header {
+                    let header_size = length_end - tag_start;
+                    if len >= header_size {
+                        len - header_size
                     } else {
-                        0
-                    }..pos,
-                ));
+                        // Length trop petit pour inclure le header, erreur
+                        exceptions.push(format!("Length too small to include header: len={}, header_size={}", len, header_size));
+                        break;
+                    }
+                } else {
+                    len
+                };
 
-                if pos + len > data.len() {
-                    exceptions.push("Value extends beyond PDU".to_string());
+                // Vérifier que la valeur ne dépasse pas
+                // Permettre que value_start + actual_len == data.len() (valeur jusqu'à la fin)
+                if value_start + actual_len > data.len() {
+                    exceptions.push(format!("Value extends beyond PDU: value_start={}, actual_len={}, data_len={}, remaining={}", value_start, actual_len, data.len(), data.len() - value_start));
+                    break;
+                }
+                
+                // Vérifier aussi qu'on a assez de données restantes
+                let remaining = data.len() - value_start;
+                if actual_len > remaining {
+                    exceptions.push(format!("Length too large for remaining data: actual_len={}, remaining={}", actual_len, remaining));
+                    break;
+                }
+                
+                // Vérifier aussi que le length n'est pas anormalement grand (probablement mal lu)
+                // Si actual_len > data.len(), c'est probablement une erreur de parsing
+                if actual_len > data.len() {
+                    exceptions.push(format!("Length too large: actual_len={}, data_len={}", actual_len, data.len()));
                     break;
                 }
 
-                segments.push(Segment::new(SegmentKind::Sdu, pos..pos + len));
-                pos += len;
+                // Ne pas créer de segment SDU si la longueur est 0
+                if actual_len > 0 {
+                    segments.push(Segment::new(SegmentKind::Sdu, value_start..value_start + actual_len));
+                }
+                
+                // Avancer la position pour le prochain TLV
+                if matches!(len_rule, TlvLenRule::IndefiniteWithEoc) {
+                    // Pour IndefiniteWithEoc, chercher où se trouve EOC
+                    let mut eoc_pos = length_start;
+                    while eoc_pos + 1 < data.len() {
+                        if data[eoc_pos] == 0x00 && data[eoc_pos + 1] == 0x00 {
+                            pos = eoc_pos + 2; // Après EOC
+                            break;
+                        }
+                        eoc_pos += 1;
+                    }
+                } else {
+                    // Avancer la position pour le prochain TLV
+                    if *length_includes_header {
+                        // Si length inclut le header, avancer de 'len' depuis le début du tag
+                        pos = tag_start + len;
+                    } else {
+                        // Sinon, avancer normalement
+                        pos = value_start + actual_len;
+                    }
+                }
             }
 
             parsed_pdus.push(ParsedPdu { segments, exceptions });

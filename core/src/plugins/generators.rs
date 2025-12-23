@@ -131,24 +131,39 @@ impl HypothesisGenerator for TlvGenerator {
     }
 
     fn propose(&self, _corpus: &Corpus) -> Vec<Hypothesis> {
-        vec![
-            Hypothesis::Tlv {
-                tag_bytes: 1,
-                len_rule: TlvLenRule::DefiniteShort,
-            },
-            Hypothesis::Tlv {
-                tag_bytes: 1,
-                len_rule: TlvLenRule::DefiniteLong,
-            },
-            Hypothesis::Tlv {
-                tag_bytes: 1,
-                len_rule: TlvLenRule::IndefiniteWithEoc,
-            },
-            Hypothesis::Tlv {
-                tag_bytes: 2,
-                len_rule: TlvLenRule::DefiniteShort,
-            },
-        ]
+        let mut hypotheses = Vec::new();
+        
+        // Générer toutes les combinaisons pertinentes
+        // tag_offset: où commence le tag (0, 1, 2)
+        // tag_bytes: taille du tag (1, 2, 3)
+        // len_offset: où commence le length par rapport au début du tag (tag_bytes, tag_bytes+1, etc.)
+        for tag_offset in 0..=2 {
+            for tag_bytes in 1..=3 {
+                // Le length peut être juste après le tag, ou avec un petit décalage
+                for len_offset_delta in 0..=1 {
+                    let len_offset = tag_offset + tag_bytes + len_offset_delta;
+                    
+                    for len_rule in [
+                        TlvLenRule::DefiniteShort,   // 1 byte length
+                        TlvLenRule::DefiniteMedium,  // 2 bytes length
+                        TlvLenRule::DefiniteLong,    // 4 bytes length
+                    ] {
+                        // Tester avec et sans length incluant le header
+                        for length_includes_header in [false, true] {
+                            hypotheses.push(Hypothesis::Tlv {
+                                tag_offset,
+                                tag_bytes,
+                                len_offset,
+                                len_rule,
+                                length_includes_header,
+                            });
+                        }
+                    }
+                }
+            }
+        }
+        
+        hypotheses
     }
 }
 

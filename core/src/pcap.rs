@@ -4,8 +4,8 @@ use crate::Result;
 use std::collections::HashMap;
 use std::sync::Arc;
 
-/// Parse un fichier PCAP et extrait les flows UDP
-pub fn parse_pcap(path: &str) -> Result<Vec<Flow>> {
+/// Parse un fichier PCAP et extrait tous les paquets UDP dans un seul flow
+pub fn parse_pcap(path: &str) -> Result<Flow> {
     use std::fs::File;
     use std::io::BufReader;
 
@@ -16,9 +16,7 @@ pub fn parse_pcap(path: &str) -> Result<Vec<Flow>> {
     let mut pcap_reader = pcap_parser::create_reader(1_048_576, reader)
         .map_err(|e| Error::PcapParse(format!("Failed to create reader: {:?}", e)))?;
 
-    let mut flows: HashMap<(String, String, u16, u16, u8), Vec<UdpDatagram>> = HashMap::new();
-    let mut flow_id_counter = 0usize;
-    let mut flow_id_map: HashMap<(String, String, u16, u16, u8), usize> = HashMap::new();
+    let mut all_datagrams: Vec<UdpDatagram> = Vec::new();
 
     loop {
         match pcap_reader.next() {
@@ -75,20 +73,11 @@ pub fn parse_pcap(path: &str) -> Result<Vec<Flow>> {
                                     continue;
                                 };
 
-                                let five_tuple = (
-                                    src_ip.clone(),
-                                    dst_ip.clone(),
-                                    src_port,
-                                    dst_port,
-                                    17u8, // UDP
-                                );
-
-                                let flow_id = *flow_id_map.entry(five_tuple.clone()).or_insert_with(|| {
-                                    flow_id_counter += 1;
-                                    flow_id_counter - 1
-                                });
-
-                                let direction = if flow_id % 2 == 0 {
+                                // Tous les paquets sont dans le même flow (flow_id = 0)
+                                let flow_id = 0;
+                                
+                                // Direction basée sur l'ordre des paquets (alternance simple)
+                                let direction = if all_datagrams.len() % 2 == 0 {
                                     Direction::ClientToServer
                                 } else {
                                     Direction::ServerToClient
@@ -101,7 +90,7 @@ pub fn parse_pcap(path: &str) -> Result<Vec<Flow>> {
                                     payload,
                                 };
 
-                                flows.entry(five_tuple).or_default().push(datagram);
+                                all_datagrams.push(datagram);
                             }
                         }
                     }
@@ -125,21 +114,31 @@ pub fn parse_pcap(path: &str) -> Result<Vec<Flow>> {
         }
     }
 
-    let mut result: Vec<Flow> = flows
-        .into_iter()
-        .map(|((src_ip, dst_ip, src_port, dst_port, protocol), datagrams)| Flow {
-            src_ip,
-            dst_ip,
-            src_port,
-            dst_port,
-            protocol,
-            datagrams,
-        })
-        .collect();
+    // Créer un seul flow avec tous les paquets
+    // Utiliser les valeurs du premier paquet pour les métadonnées du flow
+    let flow = if all_datagrams.is_empty() {
+        Flow {
+            src_ip: "0.0.0.0".to_string(),
+            dst_ip: "0.0.0.0".to_string(),
+            src_port: 0,
+            dst_port: 0,
+            protocol: 17, // UDP
+            datagrams: Vec::new(),
+        }
+    } else {
+        // Trier par timestamp pour avoir un ordre chronologique
+        all_datagrams.sort_by(|a, b| a.timestamp.partial_cmp(&b.timestamp).unwrap_or(std::cmp::Ordering::Equal));
+        
+        Flow {
+            src_ip: "All".to_string(),
+            dst_ip: "All".to_string(),
+            src_port: 0,
+            dst_port: 0,
+            protocol: 17, // UDP
+            datagrams: all_datagrams,
+        }
+    };
 
-    result.sort_by_key(|f| f.datagrams.len());
-    result.reverse();
-
-    Ok(result)
+    Ok(flow)
 }
 

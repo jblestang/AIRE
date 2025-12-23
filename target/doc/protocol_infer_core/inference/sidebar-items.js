@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"struct":["InferenceEngine","InferenceResult","Layer"]};
+window.SIDEBAR_ITEMS = {"struct":["HypothesisResult","InferenceEngine","InferenceResult","Layer"]};

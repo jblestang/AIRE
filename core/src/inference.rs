@@ -6,6 +6,14 @@ use crate::score::Score;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
+/// Résultat d'une hypothèse testée
+#[derive(Debug, Clone)]
+pub struct HypothesisResult {
+    pub hypothesis: Hypothesis,
+    pub score: Score,
+    pub parsed: ParsedCorpus,
+}
+
 /// Résultat d'une couche d'inférence
 #[derive(Debug, Clone)]
 pub struct Layer {
@@ -13,6 +21,23 @@ pub struct Layer {
     pub score: Score,
     pub parsed: ParsedCorpus,
     pub sdu_corpus: Option<Corpus>,
+    /// Toutes les hypothèses testées pour cette couche (top-K)
+    pub all_hypotheses: Vec<HypothesisResult>,
+}
+
+// Implémentation manuelle de Serialize pour HypothesisResult
+impl serde::Serialize for HypothesisResult {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+        let mut state = serializer.serialize_struct("HypothesisResult", 3)?;
+        state.serialize_field("hypothesis", &self.hypothesis)?;
+        state.serialize_field("score", &self.score)?;
+        state.serialize_field("parsed_pdu_count", &self.parsed.parsed_pdus.len())?;
+        state.end()
+    }
 }
 
 // Implémentation manuelle de Serialize pour Layer
@@ -22,13 +47,12 @@ impl serde::Serialize for Layer {
         S: serde::Serializer,
     {
         use serde::ser::SerializeStruct;
-        let mut state = serializer.serialize_struct("Layer", 4)?;
+        let mut state = serializer.serialize_struct("Layer", 5)?;
         state.serialize_field("hypothesis", &self.hypothesis)?;
         state.serialize_field("score", &self.score)?;
-        // Note: ParsedCorpus et Corpus ne sont pas sérialisés ici pour simplifier
-        // Dans une vraie implémentation, créer des structures sérialisables dédiées
         state.serialize_field("parsed_pdu_count", &self.parsed.parsed_pdus.len())?;
         state.serialize_field("has_sdu_corpus", &self.sdu_corpus.is_some())?;
+        state.serialize_field("all_hypotheses_count", &self.all_hypotheses.len())?;
         state.end()
     }
 }
@@ -147,6 +171,68 @@ impl InferenceEngine {
             let mut sorted: Vec<_> = scored.into_iter().collect();
             sorted.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
 
+            // Logging détaillé pour les hypothèses TLV Tag=1, Length=2
+            use crate::hypothesis::{Hypothesis, TlvLenRule};
+            for (h, score, parsed) in &sorted {
+                if let Hypothesis::Tlv { tag_bytes, len_rule, tag_offset, len_offset, length_includes_header: _ } = h {
+                    if *tag_bytes == 1 && matches!(len_rule, TlvLenRule::DefiniteMedium) {
+                        let exception_count: usize = parsed.parsed_pdus.iter()
+                            .map(|p| p.exceptions.len())
+                            .sum();
+                        let sdu_count: usize = parsed.parsed_pdus.iter()
+                            .map(|p| p.segments.iter()
+                                .filter(|s| matches!(s.kind, crate::segment::SegmentKind::Sdu))
+                                .count())
+                            .sum();
+                        let total_sdu_bytes: usize = current_corpus.items.iter()
+                            .zip(parsed.parsed_pdus.iter())
+                            .flat_map(|(pdu, parsed_pdu)| {
+                                parsed_pdu.segments.iter()
+                                    .filter_map(|s| {
+                                        if matches!(s.kind, crate::segment::SegmentKind::Sdu) {
+                                            Some(s.range.end - s.range.start)
+                                        } else {
+                                            None
+                                        }
+                                    })
+                            })
+                            .sum();
+                        
+                        // Analyser les exceptions en détail pour comprendre le problème
+                        let mut exception_types = std::collections::HashMap::new();
+                        for parsed_pdu in &parsed.parsed_pdus {
+                            for exc in &parsed_pdu.exceptions {
+                                *exception_types.entry(exc.clone()).or_insert(0) += 1;
+                            }
+                        }
+                        
+                        tracing::info!(
+                            "TLV Tag={} Len=2 (offset: tag={}, len={}): total={:.2}, model={:.2}, data={:.2}, penalties={:.2}, PSR={:.2}%, exceptions={}, SDU_count={}, SDU_bytes={}",
+                            tag_bytes,
+                            tag_offset,
+                            len_offset,
+                            score.total_bits,
+                            score.breakdown.mdl_model_bits,
+                            score.breakdown.mdl_data_bits,
+                            score.breakdown.penalties_bits,
+                            score.breakdown.parse_success_ratio * 100.0,
+                            exception_count,
+                            sdu_count,
+                            total_sdu_bytes
+                        );
+                        
+                        // Afficher les types d'exceptions les plus fréquents
+                        if !exception_types.is_empty() && exception_count > 0 {
+                            let mut exc_vec: Vec<_> = exception_types.into_iter().collect();
+                            exc_vec.sort_by(|a, b| b.1.cmp(&a.1));
+                            for (exc_type, count) in exc_vec.iter().take(3) {
+                                tracing::info!("  Exception: '{}' x{}", exc_type, count);
+                            }
+                        }
+                    }
+                }
+            }
+
             // Garder top-K
             let top_k_results: Vec<_> = sorted
                 .into_iter()
@@ -159,6 +245,28 @@ impl InferenceEngine {
 
             // Choisir le meilleur
             let (best_hypothesis, best_score, best_parsed) = top_k_results[0].clone();
+            
+            // Logging du meilleur score
+            tracing::info!(
+                "Meilleure hypothèse: {:?}, score={:.2}, model={:.2}, data={:.2}, penalties={:.2}, PSR={:.2}%",
+                best_hypothesis,
+                best_score.total_bits,
+                best_score.breakdown.mdl_model_bits,
+                best_score.breakdown.mdl_data_bits,
+                best_score.breakdown.penalties_bits,
+                best_score.breakdown.parse_success_ratio * 100.0
+            );
+            
+            // Logging des top-5 pour comparaison
+            for (idx, (h, score, _)) in top_k_results.iter().take(5).enumerate() {
+                tracing::info!(
+                    "Top {}: {:?}, score={:.2}, PSR={:.2}%",
+                    idx + 1,
+                    h,
+                    score.total_bits,
+                    score.breakdown.parse_success_ratio * 100.0
+                );
+            }
 
             // Vérifier le gain vs "raw" (pas de parsing)
             let raw_score = self.raw_score(&current_corpus);
@@ -172,11 +280,22 @@ impl InferenceEngine {
             // Extraire le corpus SDU pour la récursion
             let sdu_corpus = self.extract_sdu_corpus(&current_corpus, &best_parsed);
 
+            // Créer la liste de toutes les hypothèses testées
+            let all_hypotheses: Vec<HypothesisResult> = top_k_results
+                .iter()
+                .map(|(h, s, p)| HypothesisResult {
+                    hypothesis: h.clone(),
+                    score: s.clone(),
+                    parsed: p.clone(),
+                })
+                .collect();
+
             layers.push(Layer {
                 hypothesis: best_hypothesis,
                 score: best_score,
                 parsed: best_parsed,
                 sdu_corpus: sdu_corpus.clone(),
+                all_hypotheses,
             });
 
             // Continuer avec le SDU corpus

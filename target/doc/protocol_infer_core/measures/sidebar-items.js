@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["compressed_size","entropy","entropy_by_offset"],"struct":["AlignmentGain"]};

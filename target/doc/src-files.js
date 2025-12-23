@@ -1,0 +1,2 @@
+createSrcSidebar('[["protocol_infer_core",["",[["plugins",[],["generators.rs","mod.rs","parsers.rs","scorers.rs"]]],["corpus.rs","error.rs","hypothesis.rs","inference.rs","lib.rs","measures.rs","parser.rs","pcap.rs","plugin.rs","score.rs","segment.rs"]]]]');
+//{"start":19,"fragment_lengths":[235]}

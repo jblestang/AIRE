@@ -1,0 +1,10 @@
+/Users/jean-baptiste/AIRE/target/debug/deps/ecolor-3cebcbcb6206a1a3.d: /Users/jean-baptiste/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ecolor-0.25.0/src/lib.rs /Users/jean-baptiste/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ecolor-0.25.0/src/color32.rs /Users/jean-baptiste/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ecolor-0.25.0/src/hsva_gamma.rs /Users/jean-baptiste/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ecolor-0.25.0/src/hsva.rs /Users/jean-baptiste/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ecolor-0.25.0/src/rgba.rs /Users/jean-baptiste/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ecolor-0.25.0/src/hex_color_runtime.rs
+
+/Users/jean-baptiste/AIRE/target/debug/deps/libecolor-3cebcbcb6206a1a3.rmeta: /Users/jean-baptiste/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ecolor-0.25.0/src/lib.rs /Users/jean-baptiste/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ecolor-0.25.0/src/color32.rs /Users/jean-baptiste/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ecolor-0.25.0/src/hsva_gamma.rs /Users/jean-baptiste/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ecolor-0.25.0/src/hsva.rs /Users/jean-baptiste/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ecolor-0.25.0/src/rgba.rs /Users/jean-baptiste/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ecolor-0.25.0/src/hex_color_runtime.rs
+
+/Users/jean-baptiste/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ecolor-0.25.0/src/lib.rs:
+/Users/jean-baptiste/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ecolor-0.25.0/src/color32.rs:
+/Users/jean-baptiste/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ecolor-0.25.0/src/hsva_gamma.rs:
+/Users/jean-baptiste/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ecolor-0.25.0/src/hsva.rs:
+/Users/jean-baptiste/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ecolor-0.25.0/src/rgba.rs:
+/Users/jean-baptiste/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ecolor-0.25.0/src/hex_color_runtime.rs:

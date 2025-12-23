@@ -174,7 +174,7 @@
 <a href=#174 id=174 data-nosnippet>174</a>            <span class="comment">// Logging détaillé pour les hypothèses TLV Tag=1, Length=2
 <a href=#175 id=175 data-nosnippet>175</a>            </span><span class="kw">use </span><span class="kw">crate</span>::hypothesis::{Hypothesis, TlvLenRule};
 <a href=#176 id=176 data-nosnippet>176</a>            <span class="kw">for </span>(h, score, parsed) <span class="kw">in </span><span class="kw-2">&amp;</span>sorted {
-<a href=#177 id=177 data-nosnippet>177</a>                <span class="kw">if let </span>Hypothesis::Tlv { tag_bytes, len_rule, tag_offset, len_offset } = h {
+<a href=#177 id=177 data-nosnippet>177</a>                <span class="kw">if let </span>Hypothesis::Tlv { tag_bytes, len_rule, tag_offset, len_offset, length_includes_header } = h {
 <a href=#178 id=178 data-nosnippet>178</a>                    <span class="kw">if </span><span class="kw-2">*</span>tag_bytes == <span class="number">1 </span>&amp;&amp; <span class="macro">matches!</span>(len_rule, TlvLenRule::DefiniteMedium) {
 <a href=#179 id=179 data-nosnippet>179</a>                        <span class="kw">let </span>exception_count: usize = parsed.parsed_pdus.iter()
 <a href=#180 id=180 data-nosnippet>180</a>                            .map(|p| p.exceptions.len())
@@ -207,182 +207,223 @@
 <a href=#207 id=207 data-nosnippet>207</a>                        }
 <a href=#208 id=208 data-nosnippet>208</a>                        
 <a href=#209 id=209 data-nosnippet>209</a>                        <span class="macro">tracing::info!</span>(
-<a href=#210 id=210 data-nosnippet>210</a>                            <span class="string">"TLV Tag={} Len=2 (offset: tag={}, len={}): total={:.2}, model={:.2}, data={:.2}, penalties={:.2}, PSR={:.2}%, exceptions={}, SDU_count={}, SDU_bytes={}"</span>,
+<a href=#210 id=210 data-nosnippet>210</a>                            <span class="string">"TLV Tag={} Len=2 (offset: tag={}, len={}, includes_header={}): total={:.2}, model={:.2}, data={:.2}, penalties={:.2}, PSR={:.2}%, exceptions={}, SDU_count={}, SDU_bytes={}"</span>,
 <a href=#211 id=211 data-nosnippet>211</a>                            tag_bytes,
 <a href=#212 id=212 data-nosnippet>212</a>                            tag_offset,
 <a href=#213 id=213 data-nosnippet>213</a>                            len_offset,
-<a href=#214 id=214 data-nosnippet>214</a>                            score.total_bits,
-<a href=#215 id=215 data-nosnippet>215</a>                            score.breakdown.mdl_model_bits,
-<a href=#216 id=216 data-nosnippet>216</a>                            score.breakdown.mdl_data_bits,
-<a href=#217 id=217 data-nosnippet>217</a>                            score.breakdown.penalties_bits,
-<a href=#218 id=218 data-nosnippet>218</a>                            score.breakdown.parse_success_ratio * <span class="number">100.0</span>,
-<a href=#219 id=219 data-nosnippet>219</a>                            exception_count,
-<a href=#220 id=220 data-nosnippet>220</a>                            sdu_count,
-<a href=#221 id=221 data-nosnippet>221</a>                            total_sdu_bytes
-<a href=#222 id=222 data-nosnippet>222</a>                        );
-<a href=#223 id=223 data-nosnippet>223</a>                        
-<a href=#224 id=224 data-nosnippet>224</a>                        <span class="comment">// Afficher les types d'exceptions les plus fréquents
-<a href=#225 id=225 data-nosnippet>225</a>                        </span><span class="kw">if </span>!exception_types.is_empty() &amp;&amp; exception_count &gt; <span class="number">0 </span>{
-<a href=#226 id=226 data-nosnippet>226</a>                            <span class="kw">let </span><span class="kw-2">mut </span>exc_vec: Vec&lt;<span class="kw">_</span>&gt; = exception_types.into_iter().collect();
-<a href=#227 id=227 data-nosnippet>227</a>                            exc_vec.sort_by(|a, b| b.<span class="number">1</span>.cmp(<span class="kw-2">&amp;</span>a.<span class="number">1</span>));
-<a href=#228 id=228 data-nosnippet>228</a>                            <span class="kw">for </span>(exc_type, count) <span class="kw">in </span>exc_vec.iter().take(<span class="number">3</span>) {
-<a href=#229 id=229 data-nosnippet>229</a>                                <span class="macro">tracing::info!</span>(<span class="string">"  Exception: '{}' x{}"</span>, exc_type, count);
-<a href=#230 id=230 data-nosnippet>230</a>                            }
-<a href=#231 id=231 data-nosnippet>231</a>                        }
-<a href=#232 id=232 data-nosnippet>232</a>                    }
-<a href=#233 id=233 data-nosnippet>233</a>                }
-<a href=#234 id=234 data-nosnippet>234</a>            }
-<a href=#235 id=235 data-nosnippet>235</a>
-<a href=#236 id=236 data-nosnippet>236</a>            <span class="comment">// Garder top-K
-<a href=#237 id=237 data-nosnippet>237</a>            </span><span class="kw">let </span>top_k_results: Vec&lt;<span class="kw">_</span>&gt; = sorted
-<a href=#238 id=238 data-nosnippet>238</a>                .into_iter()
-<a href=#239 id=239 data-nosnippet>239</a>                .take(<span class="self">self</span>.top_k)
-<a href=#240 id=240 data-nosnippet>240</a>                .collect();
-<a href=#241 id=241 data-nosnippet>241</a>
-<a href=#242 id=242 data-nosnippet>242</a>            <span class="kw">if </span>top_k_results.is_empty() {
-<a href=#243 id=243 data-nosnippet>243</a>                <span class="kw">break</span>;
-<a href=#244 id=244 data-nosnippet>244</a>            }
-<a href=#245 id=245 data-nosnippet>245</a>
-<a href=#246 id=246 data-nosnippet>246</a>            <span class="comment">// Choisir le meilleur
-<a href=#247 id=247 data-nosnippet>247</a>            </span><span class="kw">let </span>(best_hypothesis, best_score, best_parsed) = top_k_results[<span class="number">0</span>].clone();
-<a href=#248 id=248 data-nosnippet>248</a>            
-<a href=#249 id=249 data-nosnippet>249</a>            <span class="comment">// Logging du meilleur score
-<a href=#250 id=250 data-nosnippet>250</a>            </span><span class="macro">tracing::info!</span>(
-<a href=#251 id=251 data-nosnippet>251</a>                <span class="string">"Meilleure hypothèse: {:?}, score={:.2}, model={:.2}, data={:.2}, penalties={:.2}, PSR={:.2}%"</span>,
-<a href=#252 id=252 data-nosnippet>252</a>                best_hypothesis,
-<a href=#253 id=253 data-nosnippet>253</a>                best_score.total_bits,
-<a href=#254 id=254 data-nosnippet>254</a>                best_score.breakdown.mdl_model_bits,
-<a href=#255 id=255 data-nosnippet>255</a>                best_score.breakdown.mdl_data_bits,
-<a href=#256 id=256 data-nosnippet>256</a>                best_score.breakdown.penalties_bits,
-<a href=#257 id=257 data-nosnippet>257</a>                best_score.breakdown.parse_success_ratio * <span class="number">100.0
-<a href=#258 id=258 data-nosnippet>258</a>            </span>);
-<a href=#259 id=259 data-nosnippet>259</a>            
-<a href=#260 id=260 data-nosnippet>260</a>            <span class="comment">// Logging des top-5 pour comparaison
-<a href=#261 id=261 data-nosnippet>261</a>            </span><span class="kw">for </span>(idx, (h, score, <span class="kw">_</span>)) <span class="kw">in </span>top_k_results.iter().take(<span class="number">5</span>).enumerate() {
-<a href=#262 id=262 data-nosnippet>262</a>                <span class="macro">tracing::info!</span>(
-<a href=#263 id=263 data-nosnippet>263</a>                    <span class="string">"Top {}: {:?}, score={:.2}, PSR={:.2}%"</span>,
-<a href=#264 id=264 data-nosnippet>264</a>                    idx + <span class="number">1</span>,
-<a href=#265 id=265 data-nosnippet>265</a>                    h,
-<a href=#266 id=266 data-nosnippet>266</a>                    score.total_bits,
-<a href=#267 id=267 data-nosnippet>267</a>                    score.breakdown.parse_success_ratio * <span class="number">100.0
-<a href=#268 id=268 data-nosnippet>268</a>                </span>);
-<a href=#269 id=269 data-nosnippet>269</a>            }
-<a href=#270 id=270 data-nosnippet>270</a>
-<a href=#271 id=271 data-nosnippet>271</a>            <span class="comment">// Vérifier le gain vs "raw" (pas de parsing)
-<a href=#272 id=272 data-nosnippet>272</a>            </span><span class="kw">let </span>raw_score = <span class="self">self</span>.raw_score(<span class="kw-2">&amp;</span>current_corpus);
-<a href=#273 id=273 data-nosnippet>273</a>            <span class="kw">let </span>gain = raw_score.total_bits - best_score.total_bits;
-<a href=#274 id=274 data-nosnippet>274</a>
-<a href=#275 id=275 data-nosnippet>275</a>            <span class="kw">if </span>gain &lt; <span class="self">self</span>.min_gain_epsilon {
-<a href=#276 id=276 data-nosnippet>276</a>                <span class="comment">// Pas assez de gain, arrêter
-<a href=#277 id=277 data-nosnippet>277</a>                </span><span class="kw">break</span>;
-<a href=#278 id=278 data-nosnippet>278</a>            }
-<a href=#279 id=279 data-nosnippet>279</a>
-<a href=#280 id=280 data-nosnippet>280</a>            <span class="comment">// Extraire le corpus SDU pour la récursion
-<a href=#281 id=281 data-nosnippet>281</a>            </span><span class="kw">let </span>sdu_corpus = <span class="self">self</span>.extract_sdu_corpus(<span class="kw-2">&amp;</span>current_corpus, <span class="kw-2">&amp;</span>best_parsed);
+<a href=#214 id=214 data-nosnippet>214</a>                            length_includes_header,
+<a href=#215 id=215 data-nosnippet>215</a>                            score.total_bits,
+<a href=#216 id=216 data-nosnippet>216</a>                            score.breakdown.mdl_model_bits,
+<a href=#217 id=217 data-nosnippet>217</a>                            score.breakdown.mdl_data_bits,
+<a href=#218 id=218 data-nosnippet>218</a>                            score.breakdown.penalties_bits,
+<a href=#219 id=219 data-nosnippet>219</a>                            score.breakdown.parse_success_ratio * <span class="number">100.0</span>,
+<a href=#220 id=220 data-nosnippet>220</a>                            exception_count,
+<a href=#221 id=221 data-nosnippet>221</a>                            sdu_count,
+<a href=#222 id=222 data-nosnippet>222</a>                            total_sdu_bytes
+<a href=#223 id=223 data-nosnippet>223</a>                        );
+<a href=#224 id=224 data-nosnippet>224</a>                        
+<a href=#225 id=225 data-nosnippet>225</a>                        <span class="comment">// Afficher les types d'exceptions les plus fréquents
+<a href=#226 id=226 data-nosnippet>226</a>                        </span><span class="kw">if </span>!exception_types.is_empty() &amp;&amp; exception_count &gt; <span class="number">0 </span>{
+<a href=#227 id=227 data-nosnippet>227</a>                            <span class="kw">let </span><span class="kw-2">mut </span>exc_vec: Vec&lt;<span class="kw">_</span>&gt; = exception_types.into_iter().collect();
+<a href=#228 id=228 data-nosnippet>228</a>                            exc_vec.sort_by(|a, b| b.<span class="number">1</span>.cmp(<span class="kw-2">&amp;</span>a.<span class="number">1</span>));
+<a href=#229 id=229 data-nosnippet>229</a>                            <span class="kw">for </span>(exc_type, count) <span class="kw">in </span>exc_vec.iter().take(<span class="number">10</span>) {
+<a href=#230 id=230 data-nosnippet>230</a>                                <span class="macro">tracing::info!</span>(<span class="string">"  Exception: '{}' x{}"</span>, exc_type, count);
+<a href=#231 id=231 data-nosnippet>231</a>                            }
+<a href=#232 id=232 data-nosnippet>232</a>                            
+<a href=#233 id=233 data-nosnippet>233</a>                            <span class="comment">// Pour Tag=1, Len=2 avec includes_header=true, afficher les détails des exceptions
+<a href=#234 id=234 data-nosnippet>234</a>                            </span><span class="kw">if </span><span class="kw-2">*</span>tag_bytes == <span class="number">1 </span>&amp;&amp; <span class="macro">matches!</span>(len_rule, TlvLenRule::DefiniteMedium) &amp;&amp; <span class="kw-2">*</span>len_offset == <span class="number">1 </span>&amp;&amp; <span class="kw-2">*</span>length_includes_header {
+<a href=#235 id=235 data-nosnippet>235</a>                                <span class="macro">tracing::info!</span>(<span class="string">"  === Détails des exceptions pour Tag=1, Len=2, includes_header=true ==="</span>);
+<a href=#236 id=236 data-nosnippet>236</a>                                <span class="kw">let </span><span class="kw-2">mut </span>padding_pdu_indices = Vec::new();
+<a href=#237 id=237 data-nosnippet>237</a>                                <span class="kw">for </span>(pdu_idx, (pdu, parsed_pdu)) <span class="kw">in </span>current_corpus.items.iter().zip(parsed.parsed_pdus.iter()).enumerate() {
+<a href=#238 id=238 data-nosnippet>238</a>                                    <span class="kw">if </span>!parsed_pdu.exceptions.is_empty() {
+<a href=#239 id=239 data-nosnippet>239</a>                                        <span class="kw">let </span>pdu_data = pdu.as_slice();
+<a href=#240 id=240 data-nosnippet>240</a>                                        <span class="kw">let </span>has_padding = parsed_pdu.exceptions.iter().any(|e| e.contains(<span class="string">"padding"</span>) || e.contains(<span class="string">"suspicious repetitive pattern"</span>));
+<a href=#241 id=241 data-nosnippet>241</a>                                        <span class="kw">if </span>has_padding {
+<a href=#242 id=242 data-nosnippet>242</a>                                            padding_pdu_indices.push(pdu_idx);
+<a href=#243 id=243 data-nosnippet>243</a>                                        }
+<a href=#244 id=244 data-nosnippet>244</a>                                        <span class="macro">tracing::info!</span>(<span class="string">"  PDU #{} ({} bytes):"</span>, pdu_idx, pdu_data.len());
+<a href=#245 id=245 data-nosnippet>245</a>                                        <span class="macro">tracing::info!</span>(<span class="string">"    Hex: {}"</span>, pdu_data.iter().take(<span class="number">32</span>).map(|b| <span class="macro">format!</span>(<span class="string">"{:02x}"</span>, b)).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;().join(<span class="string">" "</span>));
+<a href=#246 id=246 data-nosnippet>246</a>                                        <span class="kw">if </span>pdu_data.len() &gt; <span class="number">32 </span>{
+<a href=#247 id=247 data-nosnippet>247</a>                                            <span class="macro">tracing::info!</span>(<span class="string">"    ... ({} more bytes)"</span>, pdu_data.len() - <span class="number">32</span>);
+<a href=#248 id=248 data-nosnippet>248</a>                                        }
+<a href=#249 id=249 data-nosnippet>249</a>                                        <span class="kw">for </span>exc <span class="kw">in </span><span class="kw-2">&amp;</span>parsed_pdu.exceptions {
+<a href=#250 id=250 data-nosnippet>250</a>                                            <span class="macro">tracing::info!</span>(<span class="string">"    Exception: {}"</span>, exc);
+<a href=#251 id=251 data-nosnippet>251</a>                                        }
+<a href=#252 id=252 data-nosnippet>252</a>                                        <span class="comment">// Afficher les segments pour comprendre la structure
+<a href=#253 id=253 data-nosnippet>253</a>                                        </span><span class="macro">tracing::info!</span>(<span class="string">"    Segments:"</span>);
+<a href=#254 id=254 data-nosnippet>254</a>                                        <span class="kw">for </span>seg <span class="kw">in </span><span class="kw-2">&amp;</span>parsed_pdu.segments {
+<a href=#255 id=255 data-nosnippet>255</a>                                            <span class="kw">let </span>seg_data = <span class="kw-2">&amp;</span>pdu_data[seg.range.clone()];
+<a href=#256 id=256 data-nosnippet>256</a>                                            <span class="macro">tracing::info!</span>(<span class="string">"      {:?} [{}-{}]: {} bytes, hex: {}"</span>, 
+<a href=#257 id=257 data-nosnippet>257</a>                                                seg.kind, 
+<a href=#258 id=258 data-nosnippet>258</a>                                                seg.range.start, 
+<a href=#259 id=259 data-nosnippet>259</a>                                                seg.range.end,
+<a href=#260 id=260 data-nosnippet>260</a>                                                seg_data.len(),
+<a href=#261 id=261 data-nosnippet>261</a>                                                seg_data.iter().take(<span class="number">16</span>).map(|b| <span class="macro">format!</span>(<span class="string">"{:02x}"</span>, b)).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;().join(<span class="string">" "</span>)
+<a href=#262 id=262 data-nosnippet>262</a>                                            );
+<a href=#263 id=263 data-nosnippet>263</a>                                        }
+<a href=#264 id=264 data-nosnippet>264</a>                                    }
+<a href=#265 id=265 data-nosnippet>265</a>                                }
+<a href=#266 id=266 data-nosnippet>266</a>                                <span class="kw">if </span>!padding_pdu_indices.is_empty() {
+<a href=#267 id=267 data-nosnippet>267</a>                                    <span class="macro">tracing::info!</span>(<span class="string">"  === INDEX DES PDUs AVEC PADDING (88 88) ==="</span>);
+<a href=#268 id=268 data-nosnippet>268</a>                                    <span class="macro">tracing::info!</span>(<span class="string">"  PDU indices: {:?}"</span>, padding_pdu_indices);
+<a href=#269 id=269 data-nosnippet>269</a>                                    <span class="macro">tracing::info!</span>(<span class="string">"  Total: {} PDUs avec padding détecté"</span>, padding_pdu_indices.len());
+<a href=#270 id=270 data-nosnippet>270</a>                                }
+<a href=#271 id=271 data-nosnippet>271</a>                            }
+<a href=#272 id=272 data-nosnippet>272</a>                        }
+<a href=#273 id=273 data-nosnippet>273</a>                    }
+<a href=#274 id=274 data-nosnippet>274</a>                }
+<a href=#275 id=275 data-nosnippet>275</a>            }
+<a href=#276 id=276 data-nosnippet>276</a>
+<a href=#277 id=277 data-nosnippet>277</a>            <span class="comment">// Garder top-K
+<a href=#278 id=278 data-nosnippet>278</a>            </span><span class="kw">let </span>top_k_results: Vec&lt;<span class="kw">_</span>&gt; = sorted
+<a href=#279 id=279 data-nosnippet>279</a>                .into_iter()
+<a href=#280 id=280 data-nosnippet>280</a>                .take(<span class="self">self</span>.top_k)
+<a href=#281 id=281 data-nosnippet>281</a>                .collect();
 <a href=#282 id=282 data-nosnippet>282</a>
-<a href=#283 id=283 data-nosnippet>283</a>            <span class="comment">// Créer la liste de toutes les hypothèses testées
-<a href=#284 id=284 data-nosnippet>284</a>            </span><span class="kw">let </span>all_hypotheses: Vec&lt;HypothesisResult&gt; = top_k_results
-<a href=#285 id=285 data-nosnippet>285</a>                .iter()
-<a href=#286 id=286 data-nosnippet>286</a>                .map(|(h, s, p)| HypothesisResult {
-<a href=#287 id=287 data-nosnippet>287</a>                    hypothesis: h.clone(),
-<a href=#288 id=288 data-nosnippet>288</a>                    score: s.clone(),
-<a href=#289 id=289 data-nosnippet>289</a>                    parsed: p.clone(),
-<a href=#290 id=290 data-nosnippet>290</a>                })
-<a href=#291 id=291 data-nosnippet>291</a>                .collect();
-<a href=#292 id=292 data-nosnippet>292</a>
-<a href=#293 id=293 data-nosnippet>293</a>            layers.push(Layer {
-<a href=#294 id=294 data-nosnippet>294</a>                hypothesis: best_hypothesis,
-<a href=#295 id=295 data-nosnippet>295</a>                score: best_score,
-<a href=#296 id=296 data-nosnippet>296</a>                parsed: best_parsed,
-<a href=#297 id=297 data-nosnippet>297</a>                sdu_corpus: sdu_corpus.clone(),
-<a href=#298 id=298 data-nosnippet>298</a>                all_hypotheses,
-<a href=#299 id=299 data-nosnippet>299</a>            });
-<a href=#300 id=300 data-nosnippet>300</a>
-<a href=#301 id=301 data-nosnippet>301</a>            <span class="comment">// Continuer avec le SDU corpus
-<a href=#302 id=302 data-nosnippet>302</a>            </span><span class="kw">if let </span><span class="prelude-val">Some</span>(sdu_corpus) = sdu_corpus {
-<a href=#303 id=303 data-nosnippet>303</a>                current_corpus = sdu_corpus;
-<a href=#304 id=304 data-nosnippet>304</a>            } <span class="kw">else </span>{
-<a href=#305 id=305 data-nosnippet>305</a>                <span class="kw">break</span>;
-<a href=#306 id=306 data-nosnippet>306</a>            }
-<a href=#307 id=307 data-nosnippet>307</a>        }
-<a href=#308 id=308 data-nosnippet>308</a>
-<a href=#309 id=309 data-nosnippet>309</a>        InferenceResult {
-<a href=#310 id=310 data-nosnippet>310</a>            layers,
-<a href=#311 id=311 data-nosnippet>311</a>            corpus,
-<a href=#312 id=312 data-nosnippet>312</a>        }
-<a href=#313 id=313 data-nosnippet>313</a>    }
-<a href=#314 id=314 data-nosnippet>314</a>
-<a href=#315 id=315 data-nosnippet>315</a>    <span class="doccomment">/// Score pour un corpus "raw" (sans parsing)
-<a href=#316 id=316 data-nosnippet>316</a>    </span><span class="kw">fn </span>raw_score(<span class="kw-2">&amp;</span><span class="self">self</span>, corpus: <span class="kw-2">&amp;</span>Corpus) -&gt; Score {
-<a href=#317 id=317 data-nosnippet>317</a>        <span class="kw">use </span><span class="kw">crate</span>::measures::compressed_size;
-<a href=#318 id=318 data-nosnippet>318</a>        <span class="kw">use </span><span class="kw">crate</span>::score::ScoreBreakdown;
-<a href=#319 id=319 data-nosnippet>319</a>
-<a href=#320 id=320 data-nosnippet>320</a>        <span class="kw">let </span>total_bits = <span class="kw">match </span>compressed_size(
-<a href=#321 id=321 data-nosnippet>321</a>            <span class="kw-2">&amp;</span>corpus
-<a href=#322 id=322 data-nosnippet>322</a>                .items
-<a href=#323 id=323 data-nosnippet>323</a>                .iter()
-<a href=#324 id=324 data-nosnippet>324</a>                .flat_map(|p| p.as_slice())
-<a href=#325 id=325 data-nosnippet>325</a>                .copied()
-<a href=#326 id=326 data-nosnippet>326</a>                .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;(),
-<a href=#327 id=327 data-nosnippet>327</a>        ) {
-<a href=#328 id=328 data-nosnippet>328</a>            <span class="prelude-val">Ok</span>(size) =&gt; size <span class="kw">as </span>f64 * <span class="number">8.0</span>,
-<a href=#329 id=329 data-nosnippet>329</a>            <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; corpus.total_bytes() <span class="kw">as </span>f64 * <span class="number">8.0</span>,
-<a href=#330 id=330 data-nosnippet>330</a>        };
-<a href=#331 id=331 data-nosnippet>331</a>
-<a href=#332 id=332 data-nosnippet>332</a>        Score::new(ScoreBreakdown {
-<a href=#333 id=333 data-nosnippet>333</a>            mdl_model_bits: <span class="number">0.0</span>,
-<a href=#334 id=334 data-nosnippet>334</a>            mdl_data_bits: total_bits,
-<a href=#335 id=335 data-nosnippet>335</a>            parse_success_ratio: <span class="number">1.0</span>,
-<a href=#336 id=336 data-nosnippet>336</a>            alignment_gain_bits: <span class="number">0.0</span>,
-<a href=#337 id=337 data-nosnippet>337</a>            entropy_drop_bits: <span class="number">0.0</span>,
-<a href=#338 id=338 data-nosnippet>338</a>            penalties_bits: <span class="number">0.0</span>,
-<a href=#339 id=339 data-nosnippet>339</a>        })
-<a href=#340 id=340 data-nosnippet>340</a>    }
+<a href=#283 id=283 data-nosnippet>283</a>            <span class="kw">if </span>top_k_results.is_empty() {
+<a href=#284 id=284 data-nosnippet>284</a>                <span class="kw">break</span>;
+<a href=#285 id=285 data-nosnippet>285</a>            }
+<a href=#286 id=286 data-nosnippet>286</a>
+<a href=#287 id=287 data-nosnippet>287</a>            <span class="comment">// Choisir le meilleur
+<a href=#288 id=288 data-nosnippet>288</a>            </span><span class="kw">let </span>(best_hypothesis, best_score, best_parsed) = top_k_results[<span class="number">0</span>].clone();
+<a href=#289 id=289 data-nosnippet>289</a>            
+<a href=#290 id=290 data-nosnippet>290</a>            <span class="comment">// Logging du meilleur score
+<a href=#291 id=291 data-nosnippet>291</a>            </span><span class="macro">tracing::info!</span>(
+<a href=#292 id=292 data-nosnippet>292</a>                <span class="string">"Meilleure hypothèse: {:?}, score={:.2}, model={:.2}, data={:.2}, penalties={:.2}, PSR={:.2}%"</span>,
+<a href=#293 id=293 data-nosnippet>293</a>                best_hypothesis,
+<a href=#294 id=294 data-nosnippet>294</a>                best_score.total_bits,
+<a href=#295 id=295 data-nosnippet>295</a>                best_score.breakdown.mdl_model_bits,
+<a href=#296 id=296 data-nosnippet>296</a>                best_score.breakdown.mdl_data_bits,
+<a href=#297 id=297 data-nosnippet>297</a>                best_score.breakdown.penalties_bits,
+<a href=#298 id=298 data-nosnippet>298</a>                best_score.breakdown.parse_success_ratio * <span class="number">100.0
+<a href=#299 id=299 data-nosnippet>299</a>            </span>);
+<a href=#300 id=300 data-nosnippet>300</a>            
+<a href=#301 id=301 data-nosnippet>301</a>            <span class="comment">// Logging des top-5 pour comparaison
+<a href=#302 id=302 data-nosnippet>302</a>            </span><span class="kw">for </span>(idx, (h, score, <span class="kw">_</span>)) <span class="kw">in </span>top_k_results.iter().take(<span class="number">5</span>).enumerate() {
+<a href=#303 id=303 data-nosnippet>303</a>                <span class="macro">tracing::info!</span>(
+<a href=#304 id=304 data-nosnippet>304</a>                    <span class="string">"Top {}: {:?}, score={:.2}, PSR={:.2}%"</span>,
+<a href=#305 id=305 data-nosnippet>305</a>                    idx + <span class="number">1</span>,
+<a href=#306 id=306 data-nosnippet>306</a>                    h,
+<a href=#307 id=307 data-nosnippet>307</a>                    score.total_bits,
+<a href=#308 id=308 data-nosnippet>308</a>                    score.breakdown.parse_success_ratio * <span class="number">100.0
+<a href=#309 id=309 data-nosnippet>309</a>                </span>);
+<a href=#310 id=310 data-nosnippet>310</a>            }
+<a href=#311 id=311 data-nosnippet>311</a>
+<a href=#312 id=312 data-nosnippet>312</a>            <span class="comment">// Vérifier le gain vs "raw" (pas de parsing)
+<a href=#313 id=313 data-nosnippet>313</a>            </span><span class="kw">let </span>raw_score = <span class="self">self</span>.raw_score(<span class="kw-2">&amp;</span>current_corpus);
+<a href=#314 id=314 data-nosnippet>314</a>            <span class="kw">let </span>gain = raw_score.total_bits - best_score.total_bits;
+<a href=#315 id=315 data-nosnippet>315</a>
+<a href=#316 id=316 data-nosnippet>316</a>            <span class="kw">if </span>gain &lt; <span class="self">self</span>.min_gain_epsilon {
+<a href=#317 id=317 data-nosnippet>317</a>                <span class="comment">// Pas assez de gain, arrêter
+<a href=#318 id=318 data-nosnippet>318</a>                </span><span class="kw">break</span>;
+<a href=#319 id=319 data-nosnippet>319</a>            }
+<a href=#320 id=320 data-nosnippet>320</a>
+<a href=#321 id=321 data-nosnippet>321</a>            <span class="comment">// Extraire le corpus SDU pour la récursion
+<a href=#322 id=322 data-nosnippet>322</a>            </span><span class="kw">let </span>sdu_corpus = <span class="self">self</span>.extract_sdu_corpus(<span class="kw-2">&amp;</span>current_corpus, <span class="kw-2">&amp;</span>best_parsed);
+<a href=#323 id=323 data-nosnippet>323</a>
+<a href=#324 id=324 data-nosnippet>324</a>            <span class="comment">// Créer la liste de toutes les hypothèses testées
+<a href=#325 id=325 data-nosnippet>325</a>            </span><span class="kw">let </span>all_hypotheses: Vec&lt;HypothesisResult&gt; = top_k_results
+<a href=#326 id=326 data-nosnippet>326</a>                .iter()
+<a href=#327 id=327 data-nosnippet>327</a>                .map(|(h, s, p)| HypothesisResult {
+<a href=#328 id=328 data-nosnippet>328</a>                    hypothesis: h.clone(),
+<a href=#329 id=329 data-nosnippet>329</a>                    score: s.clone(),
+<a href=#330 id=330 data-nosnippet>330</a>                    parsed: p.clone(),
+<a href=#331 id=331 data-nosnippet>331</a>                })
+<a href=#332 id=332 data-nosnippet>332</a>                .collect();
+<a href=#333 id=333 data-nosnippet>333</a>
+<a href=#334 id=334 data-nosnippet>334</a>            layers.push(Layer {
+<a href=#335 id=335 data-nosnippet>335</a>                hypothesis: best_hypothesis,
+<a href=#336 id=336 data-nosnippet>336</a>                score: best_score,
+<a href=#337 id=337 data-nosnippet>337</a>                parsed: best_parsed,
+<a href=#338 id=338 data-nosnippet>338</a>                sdu_corpus: sdu_corpus.clone(),
+<a href=#339 id=339 data-nosnippet>339</a>                all_hypotheses,
+<a href=#340 id=340 data-nosnippet>340</a>            });
 <a href=#341 id=341 data-nosnippet>341</a>
-<a href=#342 id=342 data-nosnippet>342</a>    <span class="doccomment">/// Extrait un nouveau corpus à partir des SDUs parsés
-<a href=#343 id=343 data-nosnippet>343</a>    </span><span class="kw">fn </span>extract_sdu_corpus(
-<a href=#344 id=344 data-nosnippet>344</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
-<a href=#345 id=345 data-nosnippet>345</a>        corpus: <span class="kw-2">&amp;</span>Corpus,
-<a href=#346 id=346 data-nosnippet>346</a>        parsed: <span class="kw-2">&amp;</span>ParsedCorpus,
-<a href=#347 id=347 data-nosnippet>347</a>    ) -&gt; <span class="prelude-ty">Option</span>&lt;Corpus&gt; {
-<a href=#348 id=348 data-nosnippet>348</a>        <span class="kw">let </span><span class="kw-2">mut </span>sdu_items = Vec::new();
+<a href=#342 id=342 data-nosnippet>342</a>            <span class="comment">// Continuer avec le SDU corpus
+<a href=#343 id=343 data-nosnippet>343</a>            </span><span class="kw">if let </span><span class="prelude-val">Some</span>(sdu_corpus) = sdu_corpus {
+<a href=#344 id=344 data-nosnippet>344</a>                current_corpus = sdu_corpus;
+<a href=#345 id=345 data-nosnippet>345</a>            } <span class="kw">else </span>{
+<a href=#346 id=346 data-nosnippet>346</a>                <span class="kw">break</span>;
+<a href=#347 id=347 data-nosnippet>347</a>            }
+<a href=#348 id=348 data-nosnippet>348</a>        }
 <a href=#349 id=349 data-nosnippet>349</a>
-<a href=#350 id=350 data-nosnippet>350</a>        <span class="kw">for </span>(pdu, parsed_pdu) <span class="kw">in </span>corpus.items.iter().zip(parsed.parsed_pdus.iter()) {
-<a href=#351 id=351 data-nosnippet>351</a>            <span class="kw">for </span>segment <span class="kw">in </span><span class="kw-2">&amp;</span>parsed_pdu.segments {
-<a href=#352 id=352 data-nosnippet>352</a>                <span class="kw">if </span><span class="macro">matches!</span>(segment.kind, <span class="kw">crate</span>::segment::SegmentKind::Sdu) {
-<a href=#353 id=353 data-nosnippet>353</a>                    <span class="kw">let </span>sdu_data = <span class="kw-2">&amp;</span>pdu.as_slice()[segment.range.clone()];
-<a href=#354 id=354 data-nosnippet>354</a>                    <span class="kw">if </span>sdu_data.len() &gt;= <span class="self">self</span>.min_sdu_size {
-<a href=#355 id=355 data-nosnippet>355</a>                        sdu_items.push(PduRef::new(
-<a href=#356 id=356 data-nosnippet>356</a>                            pdu.data.clone(),
-<a href=#357 id=357 data-nosnippet>357</a>                            segment.range.clone(),
-<a href=#358 id=358 data-nosnippet>358</a>                        ));
-<a href=#359 id=359 data-nosnippet>359</a>                    }
-<a href=#360 id=360 data-nosnippet>360</a>                }
-<a href=#361 id=361 data-nosnippet>361</a>            }
-<a href=#362 id=362 data-nosnippet>362</a>        }
-<a href=#363 id=363 data-nosnippet>363</a>
-<a href=#364 id=364 data-nosnippet>364</a>        <span class="kw">if </span>sdu_items.is_empty() {
-<a href=#365 id=365 data-nosnippet>365</a>            <span class="kw">return </span><span class="prelude-val">None</span>;
-<a href=#366 id=366 data-nosnippet>366</a>        }
-<a href=#367 id=367 data-nosnippet>367</a>
-<a href=#368 id=368 data-nosnippet>368</a>        <span class="kw">let </span>pdu_count = sdu_items.len();
-<a href=#369 id=369 data-nosnippet>369</a>        <span class="kw">let </span>total_bytes: usize = sdu_items.iter().map(|p| p.len()).sum();
-<a href=#370 id=370 data-nosnippet>370</a>
-<a href=#371 id=371 data-nosnippet>371</a>        <span class="prelude-val">Some</span>(Corpus::new(
-<a href=#372 id=372 data-nosnippet>372</a>            sdu_items,
-<a href=#373 id=373 data-nosnippet>373</a>            <span class="kw">crate</span>::corpus::CorpusMeta {
-<a href=#374 id=374 data-nosnippet>374</a>                source: <span class="macro">format!</span>(<span class="string">"{}_sdu"</span>, corpus.meta.source),
-<a href=#375 id=375 data-nosnippet>375</a>                total_bytes,
-<a href=#376 id=376 data-nosnippet>376</a>                pdu_count,
-<a href=#377 id=377 data-nosnippet>377</a>                flow_id: corpus.meta.flow_id,
-<a href=#378 id=378 data-nosnippet>378</a>            },
-<a href=#379 id=379 data-nosnippet>379</a>        ))
-<a href=#380 id=380 data-nosnippet>380</a>    }
-<a href=#381 id=381 data-nosnippet>381</a>}
+<a href=#350 id=350 data-nosnippet>350</a>        InferenceResult {
+<a href=#351 id=351 data-nosnippet>351</a>            layers,
+<a href=#352 id=352 data-nosnippet>352</a>            corpus,
+<a href=#353 id=353 data-nosnippet>353</a>        }
+<a href=#354 id=354 data-nosnippet>354</a>    }
+<a href=#355 id=355 data-nosnippet>355</a>
+<a href=#356 id=356 data-nosnippet>356</a>    <span class="doccomment">/// Score pour un corpus "raw" (sans parsing)
+<a href=#357 id=357 data-nosnippet>357</a>    </span><span class="kw">fn </span>raw_score(<span class="kw-2">&amp;</span><span class="self">self</span>, corpus: <span class="kw-2">&amp;</span>Corpus) -&gt; Score {
+<a href=#358 id=358 data-nosnippet>358</a>        <span class="kw">use </span><span class="kw">crate</span>::measures::compressed_size;
+<a href=#359 id=359 data-nosnippet>359</a>        <span class="kw">use </span><span class="kw">crate</span>::score::ScoreBreakdown;
+<a href=#360 id=360 data-nosnippet>360</a>
+<a href=#361 id=361 data-nosnippet>361</a>        <span class="kw">let </span>total_bits = <span class="kw">match </span>compressed_size(
+<a href=#362 id=362 data-nosnippet>362</a>            <span class="kw-2">&amp;</span>corpus
+<a href=#363 id=363 data-nosnippet>363</a>                .items
+<a href=#364 id=364 data-nosnippet>364</a>                .iter()
+<a href=#365 id=365 data-nosnippet>365</a>                .flat_map(|p| p.as_slice())
+<a href=#366 id=366 data-nosnippet>366</a>                .copied()
+<a href=#367 id=367 data-nosnippet>367</a>                .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;(),
+<a href=#368 id=368 data-nosnippet>368</a>        ) {
+<a href=#369 id=369 data-nosnippet>369</a>            <span class="prelude-val">Ok</span>(size) =&gt; size <span class="kw">as </span>f64 * <span class="number">8.0</span>,
+<a href=#370 id=370 data-nosnippet>370</a>            <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; corpus.total_bytes() <span class="kw">as </span>f64 * <span class="number">8.0</span>,
+<a href=#371 id=371 data-nosnippet>371</a>        };
+<a href=#372 id=372 data-nosnippet>372</a>
+<a href=#373 id=373 data-nosnippet>373</a>        Score::new(ScoreBreakdown {
+<a href=#374 id=374 data-nosnippet>374</a>            mdl_model_bits: <span class="number">0.0</span>,
+<a href=#375 id=375 data-nosnippet>375</a>            mdl_data_bits: total_bits,
+<a href=#376 id=376 data-nosnippet>376</a>            parse_success_ratio: <span class="number">1.0</span>,
+<a href=#377 id=377 data-nosnippet>377</a>            alignment_gain_bits: <span class="number">0.0</span>,
+<a href=#378 id=378 data-nosnippet>378</a>            entropy_drop_bits: <span class="number">0.0</span>,
+<a href=#379 id=379 data-nosnippet>379</a>            penalties_bits: <span class="number">0.0</span>,
+<a href=#380 id=380 data-nosnippet>380</a>        })
+<a href=#381 id=381 data-nosnippet>381</a>    }
 <a href=#382 id=382 data-nosnippet>382</a>
-<a href=#383 id=383 data-nosnippet>383</a><span class="kw">impl </span>Default <span class="kw">for </span>InferenceEngine {
-<a href=#384 id=384 data-nosnippet>384</a>    <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
-<a href=#385 id=385 data-nosnippet>385</a>        <span class="self">Self</span>::new()
-<a href=#386 id=386 data-nosnippet>386</a>    }
-<a href=#387 id=387 data-nosnippet>387</a>}
-<a href=#388 id=388 data-nosnippet>388</a></code></pre></div></section></main></body></html>
+<a href=#383 id=383 data-nosnippet>383</a>    <span class="doccomment">/// Extrait un nouveau corpus à partir des SDUs parsés
+<a href=#384 id=384 data-nosnippet>384</a>    </span><span class="kw">fn </span>extract_sdu_corpus(
+<a href=#385 id=385 data-nosnippet>385</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
+<a href=#386 id=386 data-nosnippet>386</a>        corpus: <span class="kw-2">&amp;</span>Corpus,
+<a href=#387 id=387 data-nosnippet>387</a>        parsed: <span class="kw-2">&amp;</span>ParsedCorpus,
+<a href=#388 id=388 data-nosnippet>388</a>    ) -&gt; <span class="prelude-ty">Option</span>&lt;Corpus&gt; {
+<a href=#389 id=389 data-nosnippet>389</a>        <span class="kw">let </span><span class="kw-2">mut </span>sdu_items = Vec::new();
+<a href=#390 id=390 data-nosnippet>390</a>
+<a href=#391 id=391 data-nosnippet>391</a>        <span class="kw">for </span>(pdu, parsed_pdu) <span class="kw">in </span>corpus.items.iter().zip(parsed.parsed_pdus.iter()) {
+<a href=#392 id=392 data-nosnippet>392</a>            <span class="kw">for </span>segment <span class="kw">in </span><span class="kw-2">&amp;</span>parsed_pdu.segments {
+<a href=#393 id=393 data-nosnippet>393</a>                <span class="kw">if </span><span class="macro">matches!</span>(segment.kind, <span class="kw">crate</span>::segment::SegmentKind::Sdu) {
+<a href=#394 id=394 data-nosnippet>394</a>                    <span class="kw">let </span>sdu_data = <span class="kw-2">&amp;</span>pdu.as_slice()[segment.range.clone()];
+<a href=#395 id=395 data-nosnippet>395</a>                    <span class="kw">if </span>sdu_data.len() &gt;= <span class="self">self</span>.min_sdu_size {
+<a href=#396 id=396 data-nosnippet>396</a>                        sdu_items.push(PduRef::new(
+<a href=#397 id=397 data-nosnippet>397</a>                            pdu.data.clone(),
+<a href=#398 id=398 data-nosnippet>398</a>                            segment.range.clone(),
+<a href=#399 id=399 data-nosnippet>399</a>                        ));
+<a href=#400 id=400 data-nosnippet>400</a>                    }
+<a href=#401 id=401 data-nosnippet>401</a>                }
+<a href=#402 id=402 data-nosnippet>402</a>            }
+<a href=#403 id=403 data-nosnippet>403</a>        }
+<a href=#404 id=404 data-nosnippet>404</a>
+<a href=#405 id=405 data-nosnippet>405</a>        <span class="kw">if </span>sdu_items.is_empty() {
+<a href=#406 id=406 data-nosnippet>406</a>            <span class="kw">return </span><span class="prelude-val">None</span>;
+<a href=#407 id=407 data-nosnippet>407</a>        }
+<a href=#408 id=408 data-nosnippet>408</a>
+<a href=#409 id=409 data-nosnippet>409</a>        <span class="kw">let </span>pdu_count = sdu_items.len();
+<a href=#410 id=410 data-nosnippet>410</a>        <span class="kw">let </span>total_bytes: usize = sdu_items.iter().map(|p| p.len()).sum();
+<a href=#411 id=411 data-nosnippet>411</a>
+<a href=#412 id=412 data-nosnippet>412</a>        <span class="prelude-val">Some</span>(Corpus::new(
+<a href=#413 id=413 data-nosnippet>413</a>            sdu_items,
+<a href=#414 id=414 data-nosnippet>414</a>            <span class="kw">crate</span>::corpus::CorpusMeta {
+<a href=#415 id=415 data-nosnippet>415</a>                source: <span class="macro">format!</span>(<span class="string">"{}_sdu"</span>, corpus.meta.source),
+<a href=#416 id=416 data-nosnippet>416</a>                total_bytes,
+<a href=#417 id=417 data-nosnippet>417</a>                pdu_count,
+<a href=#418 id=418 data-nosnippet>418</a>                flow_id: corpus.meta.flow_id,
+<a href=#419 id=419 data-nosnippet>419</a>            },
+<a href=#420 id=420 data-nosnippet>420</a>        ))
+<a href=#421 id=421 data-nosnippet>421</a>    }
+<a href=#422 id=422 data-nosnippet>422</a>}
+<a href=#423 id=423 data-nosnippet>423</a>
+<a href=#424 id=424 data-nosnippet>424</a><span class="kw">impl </span>Default <span class="kw">for </span>InferenceEngine {
+<a href=#425 id=425 data-nosnippet>425</a>    <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
+<a href=#426 id=426 data-nosnippet>426</a>        <span class="self">Self</span>::new()
+<a href=#427 id=427 data-nosnippet>427</a>    }
+<a href=#428 id=428 data-nosnippet>428</a>}
+<a href=#429 id=429 data-nosnippet>429</a></code></pre></div></section></main></body></html>

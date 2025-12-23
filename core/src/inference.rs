@@ -174,7 +174,7 @@ impl InferenceEngine {
             // Logging détaillé pour les hypothèses TLV Tag=1, Length=2
             use crate::hypothesis::{Hypothesis, TlvLenRule};
             for (h, score, parsed) in &sorted {
-                if let Hypothesis::Tlv { tag_bytes, len_rule, tag_offset, len_offset, length_includes_header: _ } = h {
+                if let Hypothesis::Tlv { tag_bytes, len_rule, tag_offset, len_offset, length_includes_header } = h {
                     if *tag_bytes == 1 && matches!(len_rule, TlvLenRule::DefiniteMedium) {
                         let exception_count: usize = parsed.parsed_pdus.iter()
                             .map(|p| p.exceptions.len())
@@ -207,10 +207,11 @@ impl InferenceEngine {
                         }
                         
                         tracing::info!(
-                            "TLV Tag={} Len=2 (offset: tag={}, len={}): total={:.2}, model={:.2}, data={:.2}, penalties={:.2}, PSR={:.2}%, exceptions={}, SDU_count={}, SDU_bytes={}",
+                            "TLV Tag={} Len=2 (offset: tag={}, len={}, includes_header={}): total={:.2}, model={:.2}, data={:.2}, penalties={:.2}, PSR={:.2}%, exceptions={}, SDU_count={}, SDU_bytes={}",
                             tag_bytes,
                             tag_offset,
                             len_offset,
+                            length_includes_header,
                             score.total_bits,
                             score.breakdown.mdl_model_bits,
                             score.breakdown.mdl_data_bits,
@@ -225,8 +226,48 @@ impl InferenceEngine {
                         if !exception_types.is_empty() && exception_count > 0 {
                             let mut exc_vec: Vec<_> = exception_types.into_iter().collect();
                             exc_vec.sort_by(|a, b| b.1.cmp(&a.1));
-                            for (exc_type, count) in exc_vec.iter().take(3) {
+                            for (exc_type, count) in exc_vec.iter().take(10) {
                                 tracing::info!("  Exception: '{}' x{}", exc_type, count);
+                            }
+                            
+                            // Pour Tag=1, Len=2 avec includes_header=true, afficher les détails des exceptions
+                            if *tag_bytes == 1 && matches!(len_rule, TlvLenRule::DefiniteMedium) && *len_offset == 1 && *length_includes_header {
+                                tracing::info!("  === Détails des exceptions pour Tag=1, Len=2, includes_header=true ===");
+                                let mut padding_pdu_indices = Vec::new();
+                                for (pdu_idx, (pdu, parsed_pdu)) in current_corpus.items.iter().zip(parsed.parsed_pdus.iter()).enumerate() {
+                                    if !parsed_pdu.exceptions.is_empty() {
+                                        let pdu_data = pdu.as_slice();
+                                        let has_padding = parsed_pdu.exceptions.iter().any(|e| e.contains("padding") || e.contains("suspicious repetitive pattern"));
+                                        if has_padding {
+                                            padding_pdu_indices.push(pdu_idx);
+                                        }
+                                        tracing::info!("  PDU #{} ({} bytes):", pdu_idx, pdu_data.len());
+                                        tracing::info!("    Hex: {}", pdu_data.iter().take(32).map(|b| format!("{:02x}", b)).collect::<Vec<_>>().join(" "));
+                                        if pdu_data.len() > 32 {
+                                            tracing::info!("    ... ({} more bytes)", pdu_data.len() - 32);
+                                        }
+                                        for exc in &parsed_pdu.exceptions {
+                                            tracing::info!("    Exception: {}", exc);
+                                        }
+                                        // Afficher les segments pour comprendre la structure
+                                        tracing::info!("    Segments:");
+                                        for seg in &parsed_pdu.segments {
+                                            let seg_data = &pdu_data[seg.range.clone()];
+                                            tracing::info!("      {:?} [{}-{}]: {} bytes, hex: {}", 
+                                                seg.kind, 
+                                                seg.range.start, 
+                                                seg.range.end,
+                                                seg_data.len(),
+                                                seg_data.iter().take(16).map(|b| format!("{:02x}", b)).collect::<Vec<_>>().join(" ")
+                                            );
+                                        }
+                                    }
+                                }
+                                if !padding_pdu_indices.is_empty() {
+                                    tracing::info!("  === INDEX DES PDUs AVEC PADDING (88 88) ===");
+                                    tracing::info!("  PDU indices: {:?}", padding_pdu_indices);
+                                    tracing::info!("  Total: {} PDUs avec padding détecté", padding_pdu_indices.len());
+                                }
                             }
                         }
                     }

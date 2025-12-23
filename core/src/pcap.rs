@@ -50,7 +50,6 @@ pub fn parse_pcap(path: &str) -> Result<Flow> {
                                 )
                             }
                             etherparse::NetHeaders::Ipv6(_, _) => {
-                                // IPv6 non détaillé ici : valeurs par défaut
                                 ("::1".to_string(), "::1".to_string(), 40)
                             }
                             _ => continue,
@@ -61,12 +60,33 @@ pub fn parse_pcap(path: &str) -> Result<Flow> {
                                 let src_port = udp_header.source_port;
                                 let dst_port = udp_header.destination_port;
 
-                                // Calculer l'offset du payload
+                                // Calculer l'offset du payload UDP
                                 let udp_header_len = 8;
                                 let eth_header_len = 14; // Ethernet header
                                 let payload_start = eth_header_len + ip_header_len + udp_header_len;
 
-                                let payload = if payload_start < data.len() {
+                                // Utiliser la longueur UDP depuis l'en-tête UDP pour déterminer la taille réelle du payload
+                                // UDP length (dans l'en-tête UDP) = UDP header (8 bytes) + UDP payload
+                                // UDP payload length = UDP length - UDP header
+                                let udp_length = udp_header.length as usize;
+                                let udp_payload_length = if udp_length >= udp_header_len {
+                                    udp_length - udp_header_len
+                                } else {
+                                    // Si la longueur UDP est invalide, utiliser la taille disponible
+                                    if payload_start < data.len() {
+                                        data.len() - payload_start
+                                    } else {
+                                        pcap_reader.consume(offset);
+                                        continue;
+                                    }
+                                };
+
+                                // Extraire le payload UDP avec la taille correcte (sans padding Ethernet)
+                                let payload = if payload_start + udp_payload_length <= data.len() {
+                                    Arc::from(&data[payload_start..payload_start + udp_payload_length])
+                                } else if payload_start < data.len() {
+                                    // Si la taille calculée dépasse les données disponibles,
+                                    // utiliser ce qui est disponible (cas de capture tronquée)
                                     Arc::from(&data[payload_start..])
                                 } else {
                                     pcap_reader.consume(offset);

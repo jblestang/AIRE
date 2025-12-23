@@ -671,33 +671,45 @@ impl ProtocolInferApp {
                             .find(|s| s.range.contains(&abs_idx));
                         
                         let color = if let Some(seg) = segment {
-                            match seg.kind {
+                            match &seg.kind {
                                 protocol_infer_core::SegmentKind::Pci => egui::Color32::from_rgb(200, 200, 255),
                                 protocol_infer_core::SegmentKind::Sdu => egui::Color32::from_rgb(200, 255, 200),
                                 protocol_infer_core::SegmentKind::MessageBoundary => egui::Color32::from_rgb(255, 255, 200),
-                                protocol_infer_core::SegmentKind::Field(_) => egui::Color32::from_rgb(255, 200, 200),
+                                protocol_infer_core::SegmentKind::Field(field_name) => {
+                                    // Couleurs distinctes pour Tag et Length
+                                    if field_name == "tag" {
+                                        egui::Color32::from_rgb(255, 220, 150) // Orange pour Tag
+                                    } else if field_name == "length" || field_name == "len" {
+                                        egui::Color32::from_rgb(150, 220, 255) // Bleu clair pour Length
+                                    } else {
+                                        egui::Color32::from_rgb(255, 200, 200) // Rose pour autres Fields
+                                    }
+                                },
                                 protocol_infer_core::SegmentKind::Error(_) => egui::Color32::from_rgb(255, 100, 100),
                             }
                         } else {
                             egui::Color32::TRANSPARENT
                         };
                         
-                        ui.label(egui::RichText::new(format!("{:02x}", byte))
+                        // Utiliser monospace pour alignement parfait
+                        ui.monospace(egui::RichText::new(format!("{:02x}", byte))
                             .background_color(color)
                             .color(egui::Color32::BLACK));
                         
+                        // Espace entre bytes (sauf pour le dernier)
                         if byte_idx < chunk.len() - 1 {
-                            ui.label(" ");
+                            ui.monospace(" ");
                         }
                     }
                     
-                    // Espace pour aligner l'ASCII
+                    // Espace pour aligner l'ASCII (3 caractères par byte: "XX ")
                     let padding = bytes_per_line - chunk.len();
                     for _ in 0..padding {
-                        ui.label("   ");
+                        ui.monospace("   ");
                     }
                     
-                    ui.label("  ");
+                    // Séparateur entre hex et ASCII
+                    ui.monospace("  ");
                     
                     // ASCII representation
                     for (byte_idx, &byte) in chunk.iter().enumerate() {
@@ -706,11 +718,20 @@ impl ProtocolInferApp {
                             .find(|s| s.range.contains(&abs_idx));
                         
                         let color = if let Some(seg) = segment {
-                            match seg.kind {
+                            match &seg.kind {
                                 protocol_infer_core::SegmentKind::Pci => egui::Color32::from_rgb(200, 200, 255),
                                 protocol_infer_core::SegmentKind::Sdu => egui::Color32::from_rgb(200, 255, 200),
                                 protocol_infer_core::SegmentKind::MessageBoundary => egui::Color32::from_rgb(255, 255, 200),
-                                protocol_infer_core::SegmentKind::Field(_) => egui::Color32::from_rgb(255, 200, 200),
+                                protocol_infer_core::SegmentKind::Field(field_name) => {
+                                    // Couleurs distinctes pour Tag et Length
+                                    if field_name == "tag" {
+                                        egui::Color32::from_rgb(255, 220, 150) // Orange pour Tag
+                                    } else if field_name == "length" || field_name == "len" {
+                                        egui::Color32::from_rgb(150, 220, 255) // Bleu clair pour Length
+                                    } else {
+                                        egui::Color32::from_rgb(255, 200, 200) // Rose pour autres Fields
+                                    }
+                                },
                                 protocol_infer_core::SegmentKind::Error(_) => egui::Color32::from_rgb(255, 100, 100),
                             }
                         } else {
@@ -723,7 +744,8 @@ impl ProtocolInferApp {
                             '.'
                         };
                         
-                        ui.label(egui::RichText::new(ch.to_string())
+                        // Utiliser monospace pour alignement ASCII
+                        ui.monospace(egui::RichText::new(ch.to_string())
                             .background_color(color)
                             .color(egui::Color32::BLACK));
                     }
@@ -737,6 +759,8 @@ impl ProtocolInferApp {
                 ui.label(egui::RichText::new(" PCI ").background_color(egui::Color32::from_rgb(200, 200, 255)).color(egui::Color32::BLACK));
                 ui.label(egui::RichText::new(" SDU ").background_color(egui::Color32::from_rgb(200, 255, 200)).color(egui::Color32::BLACK));
                 ui.label(egui::RichText::new(" Boundary ").background_color(egui::Color32::from_rgb(255, 255, 200)).color(egui::Color32::BLACK));
+                ui.label(egui::RichText::new(" Tag ").background_color(egui::Color32::from_rgb(255, 220, 150)).color(egui::Color32::BLACK));
+                ui.label(egui::RichText::new(" Length ").background_color(egui::Color32::from_rgb(150, 220, 255)).color(egui::Color32::BLACK));
                 ui.label(egui::RichText::new(" Field ").background_color(egui::Color32::from_rgb(255, 200, 200)).color(egui::Color32::BLACK));
                 ui.label(egui::RichText::new(" Error ").background_color(egui::Color32::from_rgb(255, 100, 100)).color(egui::Color32::BLACK));
             });

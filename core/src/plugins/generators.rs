@@ -148,8 +148,9 @@ impl HypothesisGenerator for TlvGenerator {
                         TlvLenRule::DefiniteMedium,  // 2 bytes length
                         TlvLenRule::DefiniteLong,    // 4 bytes length
                     ] {
+                        // Prioriser length_includes_header = true (plus commun dans les protocoles réseau)
                         // Tester avec et sans length incluant le header
-                        for length_includes_header in [false, true] {
+                        for length_includes_header in [true, false] {
                             hypotheses.push(Hypothesis::Tlv {
                                 tag_offset,
                                 tag_bytes,

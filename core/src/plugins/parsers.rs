@@ -363,8 +363,8 @@ impl Parser for TlvParser {
                             exceptions.push("Incomplete length".to_string());
                             break;
                         }
-                        // Support both little and big endian for 2-byte length
-                        // Try big endian first (more common in TLV)
+                        // Network-friendly = Big Endian (standard pour les protocoles réseau)
+                        // Always use big endian for network protocols
                         let l = u16::from_be_bytes([data[length_start], data[length_start + 1]]) as usize;
                         l
                     }
@@ -429,13 +429,25 @@ impl Parser for TlvParser {
                 // Calculer où commence la valeur
                 let value_start = length_end;
                 
-                // Ajuster le length si il inclut le header
+                // Détecter les length fields invalides (données corrompues, etc.)
+                // Note: Le padding Ethernet est maintenant pré-filtré lors du chargement PCAP
+                // 1. Length trop grand par rapport à ce qui reste dans le PDU
+                let remaining_bytes = data.len().saturating_sub(value_start);
+                if len > remaining_bytes + 1000 {
+                    // Length absurde (plus de 1000 bytes au-delà de ce qui reste)
+                    // Probablement des données corrompues ou un mauvais parsing
+                    exceptions.push(format!("Length field appears invalid: len={}, remaining={}, stopping TLV parsing", len, remaining_bytes));
+                    break;
+                }
+                
+                // Utiliser length_includes_header comme spécifié dans l'hypothèse
+                // Dans notre cas, length_includes_header = true (le length inclut le header)
+                let header_size = length_end - tag_start;
                 let actual_len = if *length_includes_header {
-                    let header_size = length_end - tag_start;
                     if len >= header_size {
                         len - header_size
                     } else {
-                        // Length trop petit pour inclure le header, erreur
+                        // Length trop petit pour inclure le header
                         exceptions.push(format!("Length too small to include header: len={}, header_size={}", len, header_size));
                         break;
                     }
@@ -443,8 +455,7 @@ impl Parser for TlvParser {
                     len
                 };
 
-                // Vérifier que la valeur ne dépasse pas
-                // Permettre que value_start + actual_len == data.len() (valeur jusqu'à la fin)
+                // Vérifier que la valeur ne dépasse pas (déjà fait ci-dessus, mais double vérification)
                 if value_start + actual_len > data.len() {
                     exceptions.push(format!("Value extends beyond PDU: value_start={}, actual_len={}, data_len={}, remaining={}", value_start, actual_len, data.len(), data.len() - value_start));
                     break;
@@ -454,13 +465,6 @@ impl Parser for TlvParser {
                 let remaining = data.len() - value_start;
                 if actual_len > remaining {
                     exceptions.push(format!("Length too large for remaining data: actual_len={}, remaining={}", actual_len, remaining));
-                    break;
-                }
-                
-                // Vérifier aussi que le length n'est pas anormalement grand (probablement mal lu)
-                // Si actual_len > data.len(), c'est probablement une erreur de parsing
-                if actual_len > data.len() {
-                    exceptions.push(format!("Length too large: actual_len={}, data_len={}", actual_len, data.len()));
                     break;
                 }
 
